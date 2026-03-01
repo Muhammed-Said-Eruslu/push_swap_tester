@@ -1,10 +1,15 @@
 #ifndef CONFIG_H
 # define CONFIG_H
 
-# define BIN_PUSH_SWAP "/home/mueruslu/Desktop/rpw/push_Swap/push_swap"
-# define CHECKER_PATH_1 "/home/mueruslu/Desktop/rpw/push_Swap/checker"
-# define CHECKER_PATH_2 "./checker_linux"
-# define CHECKER_PATH_3 "./checker_Mac"
+# define PUSH_SWAP_PATH_1 "./push_swap"
+# define PUSH_SWAP_PATH_2 "../push_swap/push_swap"
+# define PUSH_SWAP_PATH_3 "../push_Swap/push_swap"
+
+# define CHECKER_PATH_1 "./checker"
+# define CHECKER_PATH_2 "../push_swap/checker"
+# define CHECKER_PATH_3 "../push_Swap/checker"
+# define CHECKER_PATH_4 "./checker_linux"
+# define CHECKER_PATH_5 "./checker_Mac"
 
 # define DEFAULT_TIMEOUT_SEC 3
 # define VALGRIND_ERROR_EXIT 101

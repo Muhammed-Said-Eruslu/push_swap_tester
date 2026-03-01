@@ -83,6 +83,8 @@ typedef struct s_progress
 	int	current;
 	int	total;
 	int	width;
+	int	pass;
+	int	fail;
 }t_progress;
 
 /* --------------------------- Engine: executor --------------------------- */
@@ -117,10 +119,13 @@ void	ui_print_row(const char *name,
 			bool pass,
 			t_sort_status sort_status,
 			t_leak_status leak_status,
+			int input_chars,
 			int moves,
 			int score);
 void	ui_print_footer(const t_stats *stats);
 void	ui_progress_draw(const t_progress *progress, const char *label);
+void	ui_print_final_status(bool success, const t_stats *stats);
+void	ui_success_animation(void);
 
 /* --------------------------- Utils --------------------------- */
 
