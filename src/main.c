@@ -6,13 +6,155 @@
 #include <time.h>
 #include <unistd.h>
 
+typedef struct s_report_ctx
+{
+	FILE	*json;
+	FILE	*csv;
+	int		first_row;
+}t_report_ctx;
+
 typedef struct s_runtime
 {
 	const char	*push_swap;
 	const char	*checker;
 	const char	*mode_name;
+	const char	*mode_flag;
 	bool		valgrind_ok;
 }t_runtime;
+
+static void	json_write_escaped(FILE *f, const char *s)
+{
+	const unsigned char	*p;
+
+	if (!f || !s)
+		return ;
+	p = (const unsigned char *)s;
+	while (*p)
+	{
+		if (*p == '"' || *p == '\\')
+			fputc('\\', f);
+		if (*p == '\n')
+			fputs("\\n", f);
+		else if (*p == '\r')
+			fputs("\\r", f);
+		else if (*p == '\t')
+			fputs("\\t", f);
+		else
+			fputc((int)*p, f);
+		p++;
+	}
+}
+
+static void	csv_write_escaped(FILE *f, const char *s)
+{
+	const unsigned char	*p;
+
+	if (!f)
+		return ;
+	fputc('"', f);
+	if (s)
+	{
+		p = (const unsigned char *)s;
+		while (*p)
+		{
+			if (*p == '"')
+				fputc('"', f);
+			fputc((int)*p, f);
+			p++;
+		}
+	}
+	fputc('"', f);
+}
+
+static void	report_open(t_report_ctx *ctx, const char *mode)
+{
+	time_t	now;
+
+	if (!ctx)
+		return ;
+	ctx->json = fopen("results.json", "w");
+	ctx->csv = fopen("results.csv", "w");
+	ctx->first_row = 1;
+	if (!ctx->json || !ctx->csv)
+	{
+		if (ctx->json)
+			fclose(ctx->json);
+		if (ctx->csv)
+			fclose(ctx->csv);
+		ctx->json = NULL;
+		ctx->csv = NULL;
+		return ;
+	}
+	now = time(NULL);
+	fprintf(ctx->json,
+		"{\n"
+		"  \"tool\": \"push_swap_tester\",\n"
+		"  \"mode\": \"");
+	json_write_escaped(ctx->json, mode ? mode : "adaptive");
+	fprintf(ctx->json,
+		"\",\n"
+		"  \"generated_at\": %ld,\n"
+		"  \"rows\": [\n",
+		(long)now);
+	fputs("index,test,result,sort,leak,chars,moves,score,timeout\n", ctx->csv);
+}
+
+static void	report_add_row(t_report_ctx *ctx, int index, const char *test_name,
+		bool pass, t_sort_status sort_st, t_leak_status leak_st,
+		int chars, int moves, int score, bool timeout)
+{
+	char	score_buf[16];
+
+	if (!ctx || !ctx->json || !ctx->csv)
+		return ;
+	if (!ctx->first_row)
+		fputs(",\n", ctx->json);
+	ctx->first_row = 0;
+	if (score > 0)
+		snprintf(score_buf, sizeof(score_buf), "%d/5", score);
+	else
+		snprintf(score_buf, sizeof(score_buf), "-");
+	fprintf(ctx->json, "    {\"index\":%d,\"test\":\"", index);
+	json_write_escaped(ctx->json, test_name);
+	fputs("\",\"result\":\"", ctx->json);
+	json_write_escaped(ctx->json, pass ? "PASS" : "FAIL");
+	fputs("\",\"sort\":\"", ctx->json);
+	json_write_escaped(ctx->json, sort_status_text(sort_st));
+	fputs("\",\"leak\":\"", ctx->json);
+	json_write_escaped(ctx->json, leak_status_text(leak_st));
+	fputs("\",\"chars\":", ctx->json);
+	fprintf(ctx->json, "%d,\"moves\":%d,\"score\":\"", chars, moves);
+	json_write_escaped(ctx->json, score_buf);
+	fprintf(ctx->json, "\",\"timeout\":%d}", timeout ? 1 : 0);
+
+	fprintf(ctx->csv, "%d,", index);
+	csv_write_escaped(ctx->csv, test_name);
+	fputc(',', ctx->csv);
+	csv_write_escaped(ctx->csv, pass ? "PASS" : "FAIL");
+	fputc(',', ctx->csv);
+	csv_write_escaped(ctx->csv, sort_status_text(sort_st));
+	fputc(',', ctx->csv);
+	csv_write_escaped(ctx->csv, leak_status_text(leak_st));
+	fprintf(ctx->csv, ",%d,%d,", chars, moves);
+	csv_write_escaped(ctx->csv, score_buf);
+	fprintf(ctx->csv, ",%d\n", timeout ? 1 : 0);
+}
+
+static void	report_close(t_report_ctx *ctx, const t_stats *stats)
+{
+	if (!ctx || !ctx->json || !ctx->csv)
+		return ;
+	fprintf(ctx->json,
+		"\n  ],\n"
+		"  \"summary\": {\"total\": %d, \"pass\": %d, \"fail\": %d, "
+		"\"leak\": %d, \"timeout\": %d}\n"
+		"}\n",
+		stats->total, stats->pass, stats->fail, stats->leak, stats->timeout);
+	fclose(ctx->json);
+	fclose(ctx->csv);
+	ctx->json = NULL;
+	ctx->csv = NULL;
+}
 
 static int	args_char_count(const char *const *args)
 {
@@ -38,6 +180,7 @@ static int	configure_mode(t_runtime *runtime, int argc, char **argv)
 	const char	*mode;
 
 	runtime->mode_name = "adaptive";
+	runtime->mode_flag = NULL;
 	if (argc == 1)
 		return (0);
 	if (argc != 3)
@@ -51,7 +194,35 @@ static int	configure_mode(t_runtime *runtime, int argc, char **argv)
 		&& strcmp(mode, "adaptive") != 0)
 		return (-1);
 	runtime->mode_name = mode;
+	if (strcmp(mode, "simple") == 0)
+		runtime->mode_flag = "--simple";
+	else if (strcmp(mode, "medium") == 0)
+		runtime->mode_flag = "--medium";
+	else if (strcmp(mode, "complex") == 0)
+		runtime->mode_flag = "--complex";
 	return (0);
+}
+
+static const char	**build_push_swap_args(const char *const *base_args,
+		const char *mode_flag, bool add_mode_flag)
+{
+	const char	**out;
+	int			base_count;
+	int			i;
+	int			offset;
+
+	base_count = args_count(base_args);
+	offset = (add_mode_flag && mode_flag != NULL);
+	out = calloc((size_t)base_count + (size_t)offset + 1, sizeof(const char *));
+	if (!out)
+		return (NULL);
+	i = 0;
+	if (offset)
+		out[i++] = mode_flag;
+	while (base_args && *base_args)
+		out[i++] = *base_args++;
+	out[i] = NULL;
+	return (out);
 }
 
 static const char	*detect_from_candidates(const char *env_name,
@@ -154,9 +325,10 @@ static bool	judge_logic(t_expect expect, const t_exec_result *res)
 }
 
 static void	run_one_case(const t_test_case *tc, const t_runtime *runtime,
-		t_stats *stats)
+		t_stats *stats, t_report_ctx *report, int case_index)
 {
 	t_exec_result	res;
+	const char	**ps_args;
 	t_sort_status	sort_st;
 	t_leak_status	leak_st;
 	bool			logic_ok;
@@ -166,17 +338,31 @@ static void	run_one_case(const t_test_case *tc, const t_runtime *runtime,
 	int			score;
 	char			msg[64];
 
-	sort_st = SORT_SKIP;
-	leak_st = LEAK_SKIP;
-	input_chars = args_char_count(tc->args);
-	moves = 0;
-	score = 0;
-	if (exec_capture_with_timeout(runtime->push_swap, tc->args,
-			DEFAULT_TIMEOUT_SEC, &res) < 0)
+	ps_args = build_push_swap_args(tc->args, runtime->mode_flag,
+			tc->expect == EXPECT_VALID);
+	if (!ps_args)
 	{
 		stats->total++;
 		stats->fail++;
+		ui_print_row(tc->name, false, SORT_SKIP, LEAK_TOOL_ERR, -1, 0, 0);
+		report_add_row(report, case_index, tc->name, false, SORT_SKIP,
+			LEAK_TOOL_ERR, -1, 0, 0, false);
+		return ;
+	}
+	sort_st = SORT_SKIP;
+	leak_st = LEAK_SKIP;
+	input_chars = args_char_count(ps_args);
+	moves = 0;
+	score = 0;
+	if (exec_capture_with_timeout(runtime->push_swap, ps_args,
+			DEFAULT_TIMEOUT_SEC, &res) < 0)
+	{
+		free((void *)ps_args);
+		stats->total++;
+		stats->fail++;
 		ui_print_row(tc->name, false, SORT_SKIP, LEAK_TOOL_ERR, input_chars, 0, 0);
+		report_add_row(report, case_index, tc->name, false, SORT_SKIP,
+			LEAK_TOOL_ERR, input_chars, 0, 0, false);
 		return ;
 	}
 	logic_ok = judge_logic(tc->expect, &res);
@@ -185,6 +371,7 @@ static void	run_one_case(const t_test_case *tc, const t_runtime *runtime,
 		moves = count_moves(res.stdout_data);
 		if (runtime->checker)
 		{
+			/* checker must receive only numeric input args, not mode flags */
 			if (judge_with_checker(runtime->checker, tc->args,
 					res.stdout_data, &sort_st, msg, sizeof(msg)) < 0)
 				sort_st = SORT_SKIP;
@@ -193,7 +380,7 @@ static void	run_one_case(const t_test_case *tc, const t_runtime *runtime,
 	}
 	if (runtime->valgrind_ok)
 	{
-		if (judge_with_valgrind(runtime->push_swap, tc->args,
+		if (judge_with_valgrind(runtime->push_swap, ps_args,
 				DEFAULT_TIMEOUT_SEC, &leak_st) < 0)
 			leak_st = LEAK_TOOL_ERR;
 	}
@@ -212,7 +399,10 @@ static void	run_one_case(const t_test_case *tc, const t_runtime *runtime,
 	if (res.timeout)
 		stats->timeout++;
 	ui_print_row(tc->name, pass, sort_st, leak_st, input_chars, moves, score);
+	report_add_row(report, case_index, tc->name, pass, sort_st, leak_st,
+		input_chars, moves, score, res.timeout);
 	exec_result_destroy(&res);
+	free((void *)ps_args);
 }
 
 static int	mode_run_random_100(const t_runtime *runtime)
@@ -228,7 +418,8 @@ static int	mode_run_random_500(const t_runtime *runtime)
 }
 
 static void	run_random_suite(const t_runtime *runtime, t_stats *stats,
-		int *progress_current, int progress_total)
+		int *progress_current, int progress_total,
+		t_report_ctx *report, int *report_index)
 {
 	int			set[RANDOM_N_500];
 	int			i;
@@ -267,7 +458,8 @@ static void	run_random_suite(const t_runtime *runtime, t_stats *stats,
 					tc.name = name;
 					tc.expect = EXPECT_VALID;
 					tc.args = args;
-					run_one_case(&tc, runtime, stats);
+					run_one_case(&tc, runtime, stats, report, *report_index);
+					(*report_index)++;
 					free(joined);
 				}
 			}
@@ -296,6 +488,8 @@ int	main(int argc, char **argv)
 	int					progress_current;
 	bool				all_passed;
 	int					random_buckets;
+	t_report_ctx		report;
+	int					report_index;
 
 	runtime.push_swap = detect_push_swap_path();
 	if (configure_mode(&runtime, argc, argv) < 0)
@@ -330,6 +524,8 @@ int	main(int argc, char **argv)
 		random_buckets++;
 	progress_total = (int)manual_count + (RANDOM_SUITE_CASES * random_buckets);
 	progress_current = 0;
+	report_index = 1;
+	report_open(&report, runtime.mode_name);
 	printf("\n%sPush Swap Tester%s\n", CLR_BOLD, CLR_RESET);
 	printf("%sBinary:%s %s\n", CLR_INFO, CLR_RESET, runtime.push_swap);
 	printf("%sChecker:%s %s\n", CLR_INFO, CLR_RESET,
@@ -340,7 +536,8 @@ int	main(int argc, char **argv)
 	i = 0;
 	while (i < manual_count)
 	{
-		run_one_case(&manual_cases[i], &runtime, &stats);
+		run_one_case(&manual_cases[i], &runtime, &stats, &report, report_index);
+		report_index++;
 		progress_current++;
 		bar.current = progress_current;
 		bar.total = progress_total;
@@ -350,10 +547,12 @@ int	main(int argc, char **argv)
 		ui_progress_draw(&bar, "Testler");
 		i++;
 	}
-	run_random_suite(&runtime, &stats, &progress_current, progress_total);
+	run_random_suite(&runtime, &stats, &progress_current, progress_total,
+		&report, &report_index);
 	ui_print_footer(&stats);
 	all_passed = (stats.fail == 0);
 	ui_print_final_status(all_passed, &stats);
+	report_close(&report, &stats);
 	if (!runtime.checker)
 		printf("%sNot:%s checker bulunamadı, SORT alanı SKIP görünebilir.\n",
 			CLR_MUTED, CLR_RESET);
