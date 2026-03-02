@@ -45,6 +45,7 @@ static const t_test_case	g_cases[] = {
 	{"Two sorted", EXPECT_NONE, ARGS_TWO_SORTED},
 	{"Sorted 1..5", EXPECT_NONE, ARGS_SORTED},
 	{"Single-string sorted", EXPECT_NONE, ARGS_SINGLE_STR_SORTED},
+	{"Mixed format args", EXPECT_NONE, ARGS_MIX_FMT},
 
 	/* valid sorting */
 	{"Two reversed", EXPECT_VALID, ARGS_TWO_REVERSED},
@@ -57,7 +58,6 @@ static const t_test_case	g_cases[] = {
 	{"Plus in single string", EXPECT_VALID, ARGS_PLUS_STR},
 	{"Single-arg list", EXPECT_VALID, ARGS_SINGLE_STR},
 	{"Spaced single input", EXPECT_VALID, ARGS_SINGLE_STR_SPACED},
-	{"Mixed format args", EXPECT_VALID, ARGS_MIX_FMT},
 	{"Leading zero valid", EXPECT_VALID, ARGS_LEADING_ZERO},
 
 	/* parser / error cases */

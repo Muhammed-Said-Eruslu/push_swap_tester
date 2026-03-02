@@ -371,7 +371,6 @@ static void	run_one_case(const t_test_case *tc, const t_runtime *runtime,
 		moves = count_moves(res.stdout_data);
 		if (runtime->checker)
 		{
-			/* checker must receive only numeric input args, not mode flags */
 			if (judge_with_checker(runtime->checker, tc->args,
 					res.stdout_data, &sort_st, msg, sizeof(msg)) < 0)
 				sort_st = SORT_SKIP;
@@ -469,7 +468,7 @@ static void	run_random_suite(const t_runtime *runtime, t_stats *stats,
 			bar.width = UI_PROGRESS_WIDTH;
 			bar.pass = stats->pass;
 			bar.fail = stats->fail;
-			ui_progress_draw(&bar, "Testler");
+			ui_progress_draw(&bar, "Tests");
 			s++;
 		}
 		i++;
@@ -494,17 +493,17 @@ int	main(int argc, char **argv)
 	runtime.push_swap = detect_push_swap_path();
 	if (configure_mode(&runtime, argc, argv) < 0)
 	{
-		fprintf(stderr, "%s[ERROR]%s Geçersiz mod. Kullanım: ./push_swap_tester "
+		fprintf(stderr, "%s[ERROR]%s Invalid mode. Usage: ./push_swap_tester "
 			"[--mode adaptive|simple|medium|complex]\n", CLR_FAIL, CLR_RESET);
 		return (1);
 	}
 	if (!runtime.push_swap)
 	{
-		fprintf(stderr, "%s[ERROR]%s push_swap binary bulunamadı.\n",
+		fprintf(stderr, "%s[ERROR]%s push_swap binary not found.\n",
 			CLR_FAIL, CLR_RESET);
-		fprintf(stderr, "%sİpucu:%s tester klasöründen `../push_Swap/push_swap`"
-			" veya `../push_swap/push_swap` aranır.\n", CLR_INFO, CLR_RESET);
-		fprintf(stderr, "%sAlternatif:%s `PUSH_SWAP_BIN=/tam/yol/push_swap ./push_swap_tester`\n",
+		fprintf(stderr, "%sHint:%s Looking for `../push_Swap/push_swap`"
+			" or `../push_swap/push_swap` in the tester folder.\n", CLR_INFO, CLR_RESET);
+		fprintf(stderr, "%sAlternative:%s `PUSH_SWAP_BIN=/full/path/to/push_swap ./push_swap_tester`\n",
 			CLR_INFO, CLR_RESET);
 		return (1);
 	}
@@ -512,7 +511,7 @@ int	main(int argc, char **argv)
 	runtime.valgrind_ok = (access("/usr/bin/valgrind", X_OK) == 0
 			|| access("/bin/valgrind", X_OK) == 0);
 	if (!runtime.valgrind_ok)
-		return (fprintf(stderr, "%s[ERROR]%s valgrind bulunamadı\n",
+		return (fprintf(stderr, "%s[ERROR]%s valgrind not found\n",
 				CLR_FAIL, CLR_RESET), 1);
 	srand((unsigned int)time(NULL));
 	memset(&stats, 0, sizeof(stats));
@@ -544,7 +543,7 @@ int	main(int argc, char **argv)
 		bar.width = UI_PROGRESS_WIDTH;
 		bar.pass = stats.pass;
 		bar.fail = stats.fail;
-		ui_progress_draw(&bar, "Testler");
+		ui_progress_draw(&bar, "Tests");
 		i++;
 	}
 	run_random_suite(&runtime, &stats, &progress_current, progress_total,
@@ -554,7 +553,7 @@ int	main(int argc, char **argv)
 	ui_print_final_status(all_passed, &stats);
 	report_close(&report, &stats);
 	if (!runtime.checker)
-		printf("%sNot:%s checker bulunamadı, SORT alanı SKIP görünebilir.\n",
+		printf("%sNote:%s checker not found, SORT column may appear as SKIP.\n",
 			CLR_MUTED, CLR_RESET);
 	return (!all_passed);
 }
