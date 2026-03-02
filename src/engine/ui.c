@@ -3,28 +3,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static const char	*sort_cell(t_sort_status st)
-{
-	if (st == SORT_OK)
-		return (CLR_PASS "OK" CLR_RESET);
-	if (st == SORT_KO)
-		return (CLR_FAIL "KO" CLR_RESET);
-	return (CLR_MUTED "SKIP" CLR_RESET);
-}
-
-static const char	*leak_cell(t_leak_status st)
-{
-	if (st == LEAK_CLEAN)
-		return (CLR_PASS "CLEAN" CLR_RESET);
-	if (st == LEAK_LEAK)
-		return (CLR_LEAK "LEAK" CLR_RESET);
-	if (st == LEAK_CRASH)
-		return (CLR_FAIL "CRASH" CLR_RESET);
-	if (st == LEAK_SKIP)
-		return (CLR_MUTED "SKIP" CLR_RESET);
-	return (CLR_WARN "TOOL" CLR_RESET);
-}
-
 void	ui_print_header(void)
 {
 	printf("\n%s+----+------------------------------+--------+--------+--------+-------+--------+%s\n",
@@ -39,23 +17,46 @@ void	ui_print_row(const char *name, bool pass, t_sort_status sort_status,
 		t_leak_status leak_status, int input_chars, int moves, int score)
 {
 	const char	*symbol;
-	const char	*result;
+	const char	*res_clr;
+	const char	*res_txt;
+	const char	*sort_clr;
+	const char	*sort_txt;
+	const char	*leak_clr;
+	const char	*leak_txt;
 	char		score_buf[16];
 	char		char_buf[16];
 
 	( void )moves;
 	symbol = pass ? SYM_PASS : SYM_FAIL;
-	result = pass ? CLR_PASS "PASS" CLR_RESET : CLR_FAIL "FAIL" CLR_RESET;
+
+	res_clr = pass ? CLR_PASS : CLR_FAIL;
+	res_txt = pass ? "PASS" : "FAIL";
+
+	if (sort_status == SORT_OK) { sort_clr = CLR_PASS; sort_txt = "OK"; }
+	else if (sort_status == SORT_KO) { sort_clr = CLR_FAIL; sort_txt = "KO"; }
+	else { sort_clr = CLR_MUTED; sort_txt = "SKIP"; }
+
+	if (leak_status == LEAK_CLEAN) { leak_clr = CLR_PASS; leak_txt = "CLEAN"; }
+	else if (leak_status == LEAK_LEAK) { leak_clr = CLR_LEAK; leak_txt = "LEAK"; }
+	else if (leak_status == LEAK_CRASH) { leak_clr = CLR_FAIL; leak_txt = "CRASH"; }
+	else if (leak_status == LEAK_SKIP) { leak_clr = CLR_MUTED; leak_txt = "SKIP"; }
+	else { leak_clr = CLR_WARN; leak_txt = "TOOL"; }
+
 	if (score > 0)
 		snprintf(score_buf, sizeof(score_buf), "%d/5", score);
 	else
 		snprintf(score_buf, sizeof(score_buf), "-");
+
 	if (input_chars >= 0)
 		snprintf(char_buf, sizeof(char_buf), "%d", input_chars);
 	else
 		snprintf(char_buf, sizeof(char_buf), "-");
-	printf("\n| %-2s | %-28.28s | %-6s | %-6s | %-6s | %-5s | %-6s |\n",
-		symbol, name, result, sort_cell(sort_status), leak_cell(leak_status),
+
+	printf("\033[2K\r| %-2s | %-28.28s | %s%-6s%s | %s%-6s%s | %s%-6s%s | %-5s | %-6s |\n",
+		symbol, name,
+		res_clr, res_txt, CLR_RESET,
+		sort_clr, sort_txt, CLR_RESET,
+		leak_clr, leak_txt, CLR_RESET,
 		char_buf, score_buf);
 }
 
@@ -109,10 +110,10 @@ void	ui_success_animation(void)
 	i = 0;
 	while (i < 3)
 	{
-		printf("\r%s✨ Testler başarıyla tamamlandı ✨%s", CLR_PASS, CLR_RESET);
+		printf("\r%s✨ Tests completed successfully ✨%s", CLR_PASS, CLR_RESET);
 		fflush(stdout);
 		usleep(140000);
-		printf("\r%s🚀 Push Swap hazır!            %s", CLR_PASS, CLR_RESET);
+		printf("\r%s🚀 Push Swap is ready!            %s", CLR_PASS, CLR_RESET);
 		fflush(stdout);
 		usleep(140000);
 		i++;
@@ -131,12 +132,12 @@ void	ui_print_final_status(bool success, const t_stats *stats)
 {
 	if (success)
 	{
-		printf("%s[%s]%s Tüm testler geçti (%d/%d).\n",
+		printf("%s[%s]%s All tests passed (%d/%d).\n",
 			CLR_PASS, SYM_PASS, CLR_RESET, stats->pass, stats->total);
 		ui_success_animation();
 		return ;
 	}
-	printf("%s[%s]%s Testlerde hata var. Geçen: %d | Kalan: %d\n",
+	printf("%s[%s]%s Errors found in tests. Passed: %d | Failed: %d\n",
 		CLR_FAIL, SYM_FAIL, CLR_RESET,
 		stats->pass, stats->fail);
 }

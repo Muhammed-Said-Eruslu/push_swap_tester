@@ -24,18 +24,18 @@ all: $(NAME)
 $(NAME): $(OBJ)
 	@printf "$(CLR_INFO)[LINK]$(CLR_RESET) %s\n" "$(NAME)"
 	@$(CC) $(CFLAGS) $(INCLUDES) $(OBJ) -o $(NAME)
-	@printf "$(CLR_OK)[DONE]$(CLR_RESET) %s hazır\n" "$(NAME)"
+	@printf "$(CLR_OK)[DONE]$(CLR_RESET) %s ready\n" "$(NAME)"
 
 %.o: %.c
 	@printf "$(CLR_INFO)[CC]$(CLR_RESET) %s\n" "$<"
 	@$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
-	@printf "$(CLR_WARN)[CLEAN]$(CLR_RESET) object dosyaları siliniyor\n"
+	@printf "$(CLR_WARN)[CLEAN]$(CLR_RESET) deleting object files\n"
 	@rm -f $(OBJ)
 
 fclean: clean
-	@printf "$(CLR_WARN)[FCLEAN]$(CLR_RESET) binary siliniyor\n"
+	@printf "$(CLR_WARN)[FCLEAN]$(CLR_RESET) deleting binary\n"
 	@rm -f $(NAME)
 
 re: fclean all
